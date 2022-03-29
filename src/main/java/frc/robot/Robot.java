@@ -459,7 +459,6 @@ public class Robot extends TimedRobot implements ControlMap {
   Timer quarter = new Timer(0.2);
   Timer half = new Timer(0.75);
 
-
   Trigger toggle = new Trigger();
   void autoClimb(){
     if(Arms.calibrated){
@@ -550,6 +549,107 @@ public class Robot extends TimedRobot implements ControlMap {
       // if(!delay(Arms.atPos(), () -> Arms.toggleArms())) return;
       // if(!delay(0.5, () -> Arms.setPosition(pos1))) return;
     }
+  }
+
+  enum ArmPos {init, midBar, tiltedMidBar, tiltedHuggingHighBar, highBar, 
+    tiltedHighBar, tiltedHuggingTraversalBar};
+
+  private ArmPos armPos = ArmPos.init;
+
+  edu.wpi.first.wpilibj.Timer timerQ = new edu.wpi.first.wpilibj.Timer();
+  double qDelay = 0.2;
+
+  edu.wpi.first.wpilibj.Timer timerH = new edu.wpi.first.wpilibj.Timer();
+  double hDelay = 0.75;
+
+  void autoClimb2() {
+      if (Arms.calibrated) {
+        switch (armPos) {
+          case init:
+            //moves elevator to middle, bringing robot to mid bar
+            if(toggle.trigger(true)) Arms.setPosition(pos2);
+            Arms.moveToPos();
+            if(Arms.atPos()) {
+                armPos = ArmPos.midBar;
+                Arms.setPosition(pos1);
+                timerQ.reset();
+                timerQ.start();
+                toggle = new Trigger();
+            }
+          break;
+          case midBar:
+              //start extending elevator up
+              //after a .25 second delay, extend climber hooks
+              Arms.toggleArms(toggle.trigger(quarter.triggered()));
+
+              Arms.moveToPos();
+              if(Arms.atPos() && quarter.triggered()){
+                  //once elevator is fully extended, start another .25 second timer
+                  armPos = ArmPos.tiltedMidBar;
+                  timerH.reset();
+                  timerH.start();
+                  toggle = new Trigger();
+              }
+              break;
+          case tiltedMidBar:
+              //retract arms
+              Arms.toggleArms(toggle.trigger(true));
+              if(timerH.hasElapsed(hDelay)){
+                //after a .25 second delay, continue to next step
+                Arms.setPosition(pos2);
+                armPos = ArmPos.tiltedHuggingHighBar;
+              }
+            break;
+            case tiltedHuggingHighBar:
+              //begin lowering elevator
+              Arms.moveToPos();
+              if(Arms.atPos()){
+                //once elevator is lowered, the robot will be swinging on the high bar
+                //continue to next step
+                armPos = ArmPos.highBar;
+                Arms.setPosition(pos1);
+                timerQ.reset();
+                timerQ.start();
+              }
+            break;
+            case highBar:
+              //start extending elevator up
+              //after a .25 second delay, extend climber hooks
+              Arms.toggleArms(toggle.trigger(timerQ.hasElapsed(qDelay)));
+        
+              Arms.moveToPos();
+              if(Arms.atPos() && timerQ.hasElapsed(qDelay)){
+                //once elevator is fully extended, start another .25 second timer
+                armPos = ArmPos.tiltedHighBar;
+                timerH.reset();
+                timerH.start();
+                toggle = new Trigger();
+              }
+            break;
+            case tiltedHighBar:
+              //retract arms
+              Arms.toggleArms(toggle.trigger(true));
+              if(timerH.hasElapsed(hDelay)){
+                //after a .25 second delay, continue to next step
+                Arms.setPosition(pos2);
+                autoClimbCount = 6;
+                armPos = ArmPos.tiltedHuggingTraversalBar;
+                timerQ.reset();
+                timerQ.start();
+              }
+            break;
+            case tiltedHuggingTraversalBar:
+              //begin lowering elevator
+              if(timerQ.hasElapsed(qDelay)){
+                if(toggle.trigger(true)) Arms.setPosition(pos2);
+                Arms.moveToPos();
+                if(Arms.atPos()) autoClimb = false;
+              }
+        //once elevator is lowered, the robot will be swinging on the traversal bar
+        //robot is now on traversal bar
+            break;
+        }
+      }
   }
 
   /**
